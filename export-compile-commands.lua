@@ -24,7 +24,8 @@ local workspace = p.workspace
 local project = p.project
 
 function m.getToolset(cfg)
-  return p.tools[cfg.toolset]
+  if     string.startswith(cfg.toolset, "msc") then return p.tools["clang"]
+  else                                         return  p.tools[cfg.toolset] end
 end
 
 function m.getCompileLang(prj, node)
@@ -37,11 +38,13 @@ function m.getCompileLang(prj, node)
   else                                     return nil end
 end
 
-function m.getFileTool(prj, cfg, node)
+function m.getToolName(prj, cfg, node)
   local compileLang = m.getCompileLang(prj,node)
-  if     compileLang == "cpp" then return iif(cfg.toolset == "msc", "clang-cl", m.getToolset(cfg).gettoolname(cfg, "cxx"))
-  elseif compileLang == "c"   then return iif(cfg.toolset == "msc", "clang-cl", m.getToolset(cfg).gettoolname(cfg, "cc"))
-  else                             error("Invalid file: " .. node.abspath) end
+  local tool, version = p.config.toolset(cfg)
+  if     string.startswith(cfg.toolset, "msc") then return "clang-cl"
+  elseif compileLang == "cpp"                  then return tool.gettoolname(cfg, "cxx")
+  elseif compileLang == "c"                    then return tool.gettoolname(cfg, "cc")
+  else                                         error("Invalid file: " .. node.abspath) end
 end
 
 -- function m.getIncludeDirs(cfg)
@@ -77,7 +80,9 @@ function m.getConfigFlags(prj, projCfg, node)
     local retFlags = {}
     retFlags = table.join(retFlags, toolset.getdefines(fileCfg_or_projCfg.defines))
     retFlags = table.join(retFlags, toolset.getundefines(fileCfg_or_projCfg.undefines))
-    retFlags = table.join(retFlags, toolset.getincludedirs(fileCfg_or_projCfg, fileCfg_or_projCfg.includedirs, fileCfg_or_projCfg.sysincludedirs))
+    if not (table.isempty(fileCfg_or_projCfg.includedirs) or table.isempty(fileCfg_or_projCfg.sysincludedirs)) then
+      retFlags = table.join(retFlags, toolset.getincludedirs(fileCfg_or_projCfg, fileCfg_or_projCfg.includedirs, fileCfg_or_projCfg.sysincludedirs))
+    end
     retFlags = table.join(retFlags, toolset.getforceincludes(fileCfg_or_projCfg))
 
     local compileLang = m.getCompileLang(prj, node)
@@ -128,7 +133,7 @@ function m.generateCompileCommand(prj, cfg, node)
   return {
     directory = prj.location,
     file = node.abspath,
-    command = m.getFileTool(prj, cfg, node) .. ' '.. table.concat(m.getFileFlags(prj, cfg, node), ' ')
+    command = m.getToolName(prj, cfg, node) .. ' '.. table.concat(m.getFileFlags(prj, cfg, node), ' ')
   }
 end
 
@@ -156,10 +161,9 @@ function m.getProjectCommands(prj, cfg)
   local cmds = {}
   p.tree.traverse(tr, {
     onleaf = function(node, depth)
-      if not m.shouldInclude(cfg, prj, node, depth) then
-        return
+      if m.shouldInclude(cfg, prj, node, depth) then
+        table.insert(cmds, m.generateCompileCommand(prj, cfg, node))
       end
-      table.insert(cmds, m.generateCompileCommand(prj, cfg, node))
     end
   })
   return cmds
