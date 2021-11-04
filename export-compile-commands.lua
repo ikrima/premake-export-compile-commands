@@ -70,7 +70,7 @@ end
 function m.getConfigFlags(prj, projCfg, node)
   -- some tools that consumes compile_commands.json have problems with relative include paths
   local old_getrelative = project.getrelative
-  project.getrelative = function(prj, dir) return dir end
+  project.getrelative = function(_, dir) return dir end
   local toolset = m.getToolset(projCfg)
 
   local function perConfigFlags(fileCfg_or_projCfg)
@@ -189,14 +189,14 @@ function m.onWorkspace(wks)
     printf("Writing CompileCommands [%s]: %s", cfgKey, outfile)
 
     p.escaper(m.esc)
-    p.generate(wks, outfile, function(wks)
+    p.generate(wks, outfile, function()
       p.push('[')
       for i = 1, #cmds do
         local item = cmds[i]
         p.push('{')
-        p.x('"directory": "%s", ', item.directory)
-        p.x('"file":      "%s", ', item.file)
-        p.x('"command":   "%s"  ', item.command)
+        p.x('"directory": "%s",', item.directory)
+        p.x('"file":      "%s",', item.file)
+        p.x('"command":   "%s" ', item.command)
         if i ~= #cmds then
           p.pop('},')
         else
